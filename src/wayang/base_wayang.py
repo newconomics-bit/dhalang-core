@@ -24,6 +24,7 @@ class Wayang(ABC):
         """
         self.agent_id = agent_id
         self.bus = bus
+        self.peers: dict[str, "Wayang"] = {}
 
     def terima_sabda(self) -> Optional[SabdaMessage]:
         """Receive next message from bus for this agent.
@@ -129,3 +130,58 @@ class Wayang(ABC):
 
             result = self.gunakan_tool(message.task_type, message.payload)
             self.kirim_balasan(result, message.reply_to or message.sender)
+
+    def delegasi_ke(self, target_id: str, task_type: str, payload: dict):
+        """Delegate a task to another Wayang agent via Sabda bus.
+
+        Args:
+            target_id: The agent_id of the target Wayang.
+            task_type: Type of task to execute.
+            payload: Task payload data.
+
+        Returns:
+            WayangResult from the target agent, or None if no response.
+        """
+        # Publish SabdaMessage via bus (respecting protocol)
+        message = SabdaMessage(
+            sender=self.agent_id,
+            receiver=target_id,
+            task_type=task_type,
+            payload=payload,
+            reply_to=self.agent_id
+        )
+        self.bus.publish(message)
+        logger.info("[%s] -> [%s] delegasi: task_type=%s", self.agent_id, target_id, task_type)
+
+        # NOTE: sinkron peer-drain, diganti async runner di fase real-LLM
+        target_wayang = self.peers.get(target_id)
+        if target_wayang:
+            target_wayang.jalankan()
+
+        # Wait for response from target via our own queue
+        response = self.bus.get_next(self.agent_id)
+        if response is None:
+            logger.info("[%s] <- [%s] tidak ada balasan", self.agent_id, target_id)
+            return None
+
+        logger.info("[%s] <- [%s] terima balasan", self.agent_id, response.sender)
+
+        # Parse payload to WayangResult
+        try:
+            status_str = response.payload.get("status", "completed").lower()
+            status_map = {
+                "completed": WayangStatus.COMPLETED,
+                "failed": WayangStatus.FAILED,
+                "need_more_info": WayangStatus.NEED_MORE_INFO,
+            }
+            status = status_map.get(status_str, WayangStatus.COMPLETED)
+
+            return WayangResult(
+                agent=response.sender,
+                status=status,
+                result=response.payload.get("result", {}),
+                notes=response.payload.get("notes")
+            )
+        except Exception as e:
+            logger.error("[%s] Gagal parse balasan dari [%s]: %s", self.agent_id, target_id, e)
+            return None
