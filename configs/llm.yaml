@@ -1,0 +1,14 @@
+# LLM Backend Configuration for Dhalang-Core
+# 
+# backend: "mock" or "ollama"
+# - mock: uses local keyword-based mock (no network, no GPU)
+# - ollama: connects to Ollama server at host
+#
+# model: Ollama model name (used when backend=ollama)
+# host: Ollama server URL (used when backend=ollama)
+# temperature: sampling temperature 0.0-1.0 (used when backend=ollama)
+
+backend: "mock"
+model: "qwen2.5:14b"
+host: "http://localhost:11434"
+temperature: 0.5

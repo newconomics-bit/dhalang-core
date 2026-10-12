@@ -9,6 +9,8 @@ from src.sabda.models import SabdaMessage, WayangResult, WayangStatus
 from src.wayang.coder_wayang import CoderWayang
 from src.wayang.sec_wayang import SecWayang
 from src.dhalang.aggregator import Manunggal
+from src.llm.interfaces import LLMBackend
+from src.llm.factory import get_backend
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +18,12 @@ logger = logging.getLogger(__name__)
 class Dhalang:
     """Orchestrator that delegates tasks to Wayang agents and aggregates results."""
 
-    def __init__(self) -> None:
-        """Initialize Dhalang with bus and registered Wayang agents."""
+    def __init__(self, backend: Optional[LLMBackend] = None) -> None:
+        """Initialize Dhalang with bus and registered Wayang agents.
+
+        Args:
+            backend: Optional LLM backend. If None, loads from config.
+        """
         self.bus = SabdaBus()
         self.registered_wayangs: dict[str, object] = {}
 
@@ -29,6 +35,9 @@ class Dhalang:
         self._wire_peers()
 
         self.manunggal = Manunggal()
+
+        # LLM backend (for future Wayang integration)
+        self.backend = backend or get_backend()
 
     def _wire_peers(self) -> None:
         """Inject peer references into all registered Wayang agents."""

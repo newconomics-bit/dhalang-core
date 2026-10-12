@@ -1,6 +1,30 @@
 """Mock LLM brain for testing Wayang agents."""
 
 import json
+from abc import ABC, abstractmethod
+
+
+class LLMBackend(ABC):
+    """Abstract base class for LLM backends."""
+
+    @abstractmethod
+    def respond(self, prompt: str) -> str:
+        """Generate a response for the given prompt.
+
+        Args:
+            prompt: Input prompt string.
+
+        Returns:
+            Response string from the LLM.
+        """
+        pass
+
+
+class MockBackend(LLMBackend):
+    """Mock backend that delegates to the mock_respond function."""
+
+    def respond(self, prompt: str) -> str:
+        return mock_respond(prompt)
 
 
 def mock_respond(prompt: str) -> str:
