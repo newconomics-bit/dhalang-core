@@ -86,6 +86,64 @@ class TestDhalangIntegration:
         assert len(dhalang.registered_wayangs) == initial_count + 1
         assert "mock_wayang" in dhalang.registered_wayangs
 
+    def test_proses_chain_delegation(self):
+        """Test Dhalang processes chain delegation (security + code)."""
+        dhalang = Dhalang()
+        result = dhalang.proses("Audit keamanan target.com dan cek code backend-nya")
+
+        assert isinstance(result, str)
+        # Should contain security results
+        assert "api.target.com" in result
+        assert "dev.target.com" in result
+        assert "subdomains" in result
+        assert "vulnerabilities" in result
+        # Should contain code analysis results (combined in sec_wayang's result)
+        assert "auth.py" in result
+        assert "password not hashed" in result
+        assert "line" in result
+        assert "severity" in result
+        # Agent shown is sec_wayang (chain happens internally)
+        assert "sec_wayang" in result
+        assert "COMPLETED" in result
+
+    def test_analisis_input_chain(self):
+        """Test analisis_input detects chain (both security and code)."""
+        dhalang = Dhalang()
+
+        target, task_type, payload = dhalang.analisis_input("Audit keamanan target.com dan cek code backend-nya")
+        assert target == "sec_wayang"
+        assert task_type == "security_audit"
+        assert payload["target"] == "target.com"
+        # "backend-nya" has no .py extension, falls back to auth.py
+        assert payload["file"] == "auth.py"
+
+    def test_analisis_input_security_only_regression(self):
+        """Regression guard: security-only input still returns scan_subdomain."""
+        dhalang = Dhalang()
+
+        target, task_type, payload = dhalang.analisis_input("Scan subdomain example.com")
+        assert target == "sec_wayang"
+        assert task_type == "scan_subdomain"
+        assert payload["target"] == "example.com"
+
+        target, task_type, payload = dhalang.analisis_input("Security audit for test.com")
+        assert target == "sec_wayang"
+        assert task_type == "scan_subdomain"
+        assert payload["target"] == "test.com"
+
+    def test_analisis_input_code_only_regression(self):
+        """Regression guard: code-only input still returns analyze_code."""
+        dhalang = Dhalang()
+
+        target, task_type, payload = dhalang.analisis_input("Analyze code in auth.py")
+        assert target == "coder_wayang"
+        assert task_type == "analyze_code"
+        assert payload["file"] == "auth.py"
+
+        target, task_type, payload = dhalang.analisis_input("Find bug in login function")
+        assert target == "coder_wayang"
+        assert task_type == "analyze_code"
+
 
 class TestManunggalAggregator:
     """Tests for Manunggal aggregator."""

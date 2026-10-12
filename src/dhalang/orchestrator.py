@@ -25,7 +25,17 @@ class Dhalang:
         self.register_wayang(CoderWayang(self.bus))
         self.register_wayang(SecWayang(self.bus))
 
+        # Wire peers after all agents are registered
+        self._wire_peers()
+
         self.manunggal = Manunggal()
+
+    def _wire_peers(self) -> None:
+        """Inject peer references into all registered Wayang agents."""
+        for wayang in self.registered_wayangs.values():
+            if hasattr(wayang, 'peers'):
+                wayang.peers = dict(self.registered_wayangs)
+                logger.info("[DHALANG] Wired peers for %s: %s", wayang.agent_id, list(wayang.peers.keys()))
 
     def register_wayang(self, wayang) -> None:
         """Register a Wayang agent.
@@ -47,16 +57,26 @@ class Dhalang:
         """
         input_lower = user_input.lower()
 
-        # Security-related keywords
-        if any(kw in input_lower for kw in ("scan", "subdomain", "security", "audit")):
-            # Extract domain from input
+        # CHAIN DETECTION: both security AND code keywords present
+        has_security = any(kw in input_lower for kw in ("scan", "subdomain", "security", "audit"))
+        has_code = any(kw in input_lower for kw in ("code", "bug", "analyze", "function"))
+
+        if has_security and has_code:
+            # Extract both domain and file
+            domain_match = re.search(r'(?:target\.|domain\s+|for\s+|scan\s+)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', input_lower)
+            target = domain_match.group(1) if domain_match else "target.com"
+            file_match = re.search(r'(?:file\s+|code\s+|in\s+)([a-zA-Z0-9._/-]+\.py)', input_lower)
+            file_path = file_match.group(1) if file_match else "auth.py"
+            return ("sec_wayang", "security_audit", {"target": target, "file": file_path})
+
+        # Security-related keywords (only security, no code)
+        if has_security:
             domain_match = re.search(r'(?:target\.|domain\s+|for\s+|scan\s+)([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', input_lower)
             target = domain_match.group(1) if domain_match else "target.com"
             return ("sec_wayang", "scan_subdomain", {"target": target})
 
-        # Code-related keywords
-        if any(kw in input_lower for kw in ("code", "bug", "analyze", "function")):
-            # Extract file from input
+        # Code-related keywords (only code, no security)
+        if has_code:
             file_match = re.search(r'(?:file\s+|code\s+|in\s+)([a-zA-Z0-9._/-]+\.py)', input_lower)
             file_path = file_match.group(1) if file_match else "auth.py"
             return ("coder_wayang", "analyze_code", {"file": file_path})

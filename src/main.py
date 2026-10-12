@@ -31,6 +31,13 @@ def main() -> None:
     result2 = dhalang.proses("Analisis bug di code login")
     print(result2)
 
+    # Test case 3: Chain delegation (security audit + code analysis)
+    print("\n" + "=" * 70)
+    print("TEST 3: Audit keamanan target.com dan cek code backend-nya")
+    print("=" * 70)
+    result3 = dhalang.proses("Audit keamanan target.com dan cek code backend-nya")
+    print(result3)
+
 
 if __name__ == "__main__":
     main()

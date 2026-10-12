@@ -1,7 +1,14 @@
 """Security Wayang agent - specializes in security scanning."""
 
+import json
+import logging
+from typing import Optional
+
 from src.sabda.bus import SabdaBus
+from src.sabda.models import WayangResult, WayangStatus
 from src.wayang.base_wayang import Wayang
+
+logger = logging.getLogger(__name__)
 
 
 class SecWayang(Wayang):
@@ -10,4 +17,37 @@ class SecWayang(Wayang):
     def __init__(self, bus: SabdaBus) -> None:
         super().__init__(agent_id="sec_wayang", bus=bus)
 
-    # Can override gunakan_tool here if specialized behavior needed
+    def gunakan_tool(self, task_type: str, payload: dict) -> WayangResult:
+        """Execute task, with chain delegation for security_audit."""
+        if task_type == "security_audit":
+            # Chain delegation to coder_wayang for code analysis
+            target = payload.get("file", "auth.py")
+            coder_result = self.delegasi_ke("coder_wayang", "analyze_code", {"file": target})
+
+            # Run our own security scan
+            security_prompt = f"scan_subdomain {json.dumps({'target': payload.get('target', 'target.com')})}"
+            from src.mock.mock_llm import mock_respond
+            security_json = mock_respond(security_prompt)
+            security_data = json.loads(security_json)
+
+            # Combine results
+            combined_result = {
+                "security": security_data.get("result", {}),
+                "code_analysis": coder_result.result if coder_result else {},
+            }
+
+            notes_parts = []
+            if security_data.get("notes"):
+                notes_parts.append(f"Security: {security_data['notes']}")
+            if coder_result and coder_result.notes:
+                notes_parts.append(f"Code: {coder_result.notes}")
+
+            return WayangResult(
+                agent=self.agent_id,
+                status=WayangStatus.COMPLETED,
+                result=combined_result,
+                notes="; ".join(notes_parts) if notes_parts else "security audit with code analysis"
+            )
+
+        # Default behavior for other task types
+        return super().gunakan_tool(task_type, payload)
