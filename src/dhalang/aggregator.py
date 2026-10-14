@@ -3,7 +3,7 @@
 import json
 from typing import List
 
-from src.sabda.models import WayangResult
+from src.sabda.models import WayangResult, WayangStatus
 
 
 class Manunggal:
@@ -50,7 +50,11 @@ class Manunggal:
 
         # Closing line
         lines.append("=" * 60)
-        lines.append("Proses selesai. Semua tugas telah diselesaikan.")
+        failed_count = sum(1 for r in results if r.status == WayangStatus.FAILED)
+        if failed_count == 0:
+            lines.append("Proses selesai. Semua tugas telah diselesaikan.")
+        else:
+            lines.append(f"Proses selesai dengan catatan: {failed_count} agen gagal.")
         lines.append("=" * 60)
 
         return "\n".join(lines)
