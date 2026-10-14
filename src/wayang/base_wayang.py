@@ -7,7 +7,8 @@ from typing import Optional
 
 from src.sabda.models import SabdaMessage, WayangResult, WayangStatus
 from src.sabda.bus import SabdaBus
-from src.mock.mock_llm import mock_respond
+from src.llm.interfaces import LLMBackend
+from src.llm.mock_backend import mock_respond
 
 logger = logging.getLogger(__name__)
 
@@ -15,16 +16,18 @@ logger = logging.getLogger(__name__)
 class Wayang(ABC):
     """Abstract base class for Wayang agents."""
 
-    def __init__(self, agent_id: str, bus: SabdaBus) -> None:
+    def __init__(self, agent_id: str, bus: SabdaBus, backend: Optional[LLMBackend] = None) -> None:
         """Initialize Wayang agent.
 
         Args:
             agent_id: Unique identifier for this agent.
             bus: SabdaBus instance for message communication.
+            backend: Optional LLM backend. If None, falls back to mock_respond.
         """
         self.agent_id = agent_id
         self.bus = bus
         self.peers: dict[str, "Wayang"] = {}
+        self.backend = backend
 
     def terima_sabda(self) -> Optional[SabdaMessage]:
         """Receive next message from bus for this agent.
@@ -35,7 +38,7 @@ class Wayang(ABC):
         return self.bus.get_next(self.agent_id)
 
     def gunakan_tool(self, task_type: str, payload: dict) -> WayangResult:
-        """Execute task using mock LLM and parse result.
+        """Execute task using LLM backend (or mock fallback) and parse result.
 
         Args:
             task_type: Type of task to execute.
@@ -47,8 +50,11 @@ class Wayang(ABC):
         # Build prompt from task_type and payload
         prompt = f"{task_type} {json.dumps(payload)}"
 
-        # Call mock LLM
-        response_json = mock_respond(prompt)
+        # Call LLM backend or mock fallback
+        if self.backend is not None:
+            response_json = self.backend.respond(prompt)
+        else:
+            response_json = mock_respond(prompt)
 
         # Parse JSON response
         try:

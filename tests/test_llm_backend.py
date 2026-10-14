@@ -5,11 +5,10 @@ import pytest
 from unittest.mock import Mock, patch
 
 from src.llm.interfaces import LLMBackend
-from src.llm.mock_backend import MockBackend
+from src.llm.mock_backend import MockBackend, mock_respond
 from src.llm.ollama_backend import OllamaBackend
 from src.llm.errors import LLMUnavailableError
 from src.llm.factory import get_backend
-from src.mock.mock_llm import mock_respond
 
 
 class TestMockBackend:
