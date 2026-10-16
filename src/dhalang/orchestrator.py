@@ -27,24 +27,27 @@ class Dhalang:
         self.bus = SabdaBus()
         self.registered_wayangs: dict[str, object] = {}
 
+        # LLM backend (must be set before registering wayangs)
+        self.backend = backend or get_backend()
+
         # Register default Wayang agents
-        self.register_wayang(CoderWayang(self.bus))
-        self.register_wayang(SecWayang(self.bus))
+        self.register_wayang(CoderWayang(self.bus, self.backend))
+        self.register_wayang(SecWayang(self.bus, self.backend))
 
         # Wire peers after all agents are registered
         self._wire_peers()
 
         self.manunggal = Manunggal()
 
-        # LLM backend (for future Wayang integration)
-        self.backend = backend or get_backend()
-
     def _wire_peers(self) -> None:
-        """Inject peer references into all registered Wayang agents."""
+        """Inject peer references and backend into all registered Wayang agents."""
         for wayang in self.registered_wayangs.values():
             if hasattr(wayang, 'peers'):
                 wayang.peers = dict(self.registered_wayangs)
                 logger.info("[DHALANG] Wired peers for %s: %s", wayang.agent_id, list(wayang.peers.keys()))
+            if hasattr(wayang, 'backend'):
+                wayang.backend = self.backend
+                logger.info("[DHALANG] Injected backend into %s", wayang.agent_id)
 
     def register_wayang(self, wayang) -> None:
         """Register a Wayang agent.
@@ -53,6 +56,10 @@ class Dhalang:
             wayang: Wayang instance with agent_id attribute.
         """
         self.registered_wayangs[wayang.agent_id] = wayang
+        # Inject backend immediately if already available
+        if hasattr(wayang, 'backend') and self.backend is not None:
+            wayang.backend = self.backend
+            logger.info("[DHALANG] Injected backend into %s at registration", wayang.agent_id)
         logger.info("[DHALANG] Registered wayang: %s", wayang.agent_id)
 
     def analisis_input(self, user_input: str) -> tuple[str, str, dict]:

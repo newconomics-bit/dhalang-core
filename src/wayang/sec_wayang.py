@@ -7,6 +7,8 @@ from typing import Optional
 from src.sabda.bus import SabdaBus
 from src.sabda.models import WayangResult, WayangStatus
 from src.wayang.base_wayang import Wayang
+from src.llm.interfaces import LLMBackend
+from src.llm.mock_backend import mock_respond
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +16,8 @@ logger = logging.getLogger(__name__)
 class SecWayang(Wayang):
     """Wayang agent specialized for security scanning tasks."""
 
-    def __init__(self, bus: SabdaBus) -> None:
-        super().__init__(agent_id="sec_wayang", bus=bus)
+    def __init__(self, bus: SabdaBus, backend=None) -> None:
+        super().__init__(agent_id="sec_wayang", bus=bus, backend=backend)
 
     def gunakan_tool(self, task_type: str, payload: dict) -> WayangResult:
         """Execute task, with chain delegation for security_audit."""
@@ -26,8 +28,10 @@ class SecWayang(Wayang):
 
             # Run our own security scan
             security_prompt = f"scan_subdomain {json.dumps({'target': payload.get('target', 'target.com')})}"
-            from src.mock.mock_llm import mock_respond
-            security_json = mock_respond(security_prompt)
+            if self.backend is not None:
+                security_json = self.backend.respond(security_prompt)
+            else:
+                security_json = mock_respond(security_prompt)
             security_data = json.loads(security_json)
 
             # Combine results

@@ -8,7 +8,7 @@ import yaml
 
 from .interfaces import LLMBackend
 from .ollama_backend import OllamaBackend
-from src.mock.mock_llm import MockBackend
+from .mock_backend import MockBackend
 
 logger = logging.getLogger(__name__)
 
