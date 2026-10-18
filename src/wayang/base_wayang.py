@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -9,8 +10,38 @@ from src.sabda.models import SabdaMessage, WayangResult, WayangStatus
 from src.sabda.bus import SabdaBus
 from src.llm.interfaces import LLMBackend
 from src.llm.mock_backend import mock_respond
+from src.llm.parse import parse_llm_response
 
 logger = logging.getLogger(__name__)
+
+# Prompt template for structured LLM output
+SYSTEM_PROMPT = (
+    "You are a specialized agent. Return ONLY a JSON object with the following keys:\n"
+    "- status: one of \"completed\", \"failed\", \"need_more_info\"\n"
+    "- result: an object with task-specific data\n"
+    "- notes: a string with additional context (optional)\n"
+    "No prose, no markdown fences, no extra text. Only the JSON object."
+)
+
+TASK_PROMPTS = {
+    "scan_subdomain": "Perform a subdomain scan for the target domain.",
+    "analyze_code": "Analyze the code for bugs or issues.",
+    "security_audit": "Perform a security audit including subdomain scan and code analysis.",
+}
+
+
+def build_prompt(task_type: str, payload: dict) -> str:
+    """Build a structured prompt for the LLM.
+
+    Args:
+        task_type: Type of task to execute.
+        payload: Task payload data.
+
+    Returns:
+        Formatted prompt string.
+    """
+    task_instruction = TASK_PROMPTS.get(task_type, f"Execute task: {task_type}")
+    return f"{SYSTEM_PROMPT}\n\nTask: {task_instruction}\nPayload: {json.dumps(payload)}"
 
 
 class Wayang(ABC):
@@ -47,42 +78,17 @@ class Wayang(ABC):
         Returns:
             WayangResult with parsed response.
         """
-        # Build prompt from task_type and payload
-        prompt = f"{task_type} {json.dumps(payload)}"
+        # Build structured prompt
+        prompt = build_prompt(task_type, payload)
 
         # Call LLM backend or mock fallback
         if self.backend is not None:
-            response_json = self.backend.respond(prompt)
+            response_text = self.backend.respond(prompt)
         else:
-            response_json = mock_respond(prompt)
+            response_text = mock_respond(prompt)
 
-        # Parse JSON response
-        try:
-            response_data = json.loads(response_json)
-        except json.JSONDecodeError as e:
-            logger.error("Failed to parse mock response: %s", e)
-            return WayangResult(
-                agent=self.agent_id,
-                status=WayangStatus.FAILED,
-                result={},
-                notes=f"JSON parse error: {e}"
-            )
-
-        # Map status string to enum
-        status_str = response_data.get("status", "completed").lower()
-        status_map = {
-            "completed": WayangStatus.COMPLETED,
-            "failed": WayangStatus.FAILED,
-            "need_more_info": WayangStatus.NEED_MORE_INFO,
-        }
-        status = status_map.get(status_str, WayangStatus.COMPLETED)
-
-        return WayangResult(
-            agent=self.agent_id,
-            status=status,
-            result=response_data.get("result", {}),
-            notes=response_data.get("notes")
-        )
+        # Parse response with fallback strategies
+        return parse_llm_response(response_text, self.agent_id)
 
     def kirim_balasan(self, result: WayangResult, reply_to: str) -> None:
         """Send result back to requester via bus.

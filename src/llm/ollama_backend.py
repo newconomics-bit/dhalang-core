@@ -20,6 +20,7 @@ class OllamaBackend(LLMBackend):
         host: str = "http://localhost:11434",
         temperature: float = 0.5,
         timeout: int = 60,
+        enable_json_format: bool = True,
     ) -> None:
         """Initialize Ollama backend.
 
@@ -28,11 +29,13 @@ class OllamaBackend(LLMBackend):
             host: Ollama server URL (default: http://localhost:11434).
             temperature: Sampling temperature (default: 0.5).
             timeout: Request timeout in seconds (default: 60).
+            enable_json_format: Whether to request JSON format from Ollama (default: True).
         """
         self.model = model
         self.host = host.rstrip("/")
         self.temperature = temperature
         self.timeout = timeout
+        self.enable_json_format = enable_json_format
         self._api_url = f"{self.host}/api/chat"
 
     def respond(self, prompt: str) -> str:
@@ -57,6 +60,9 @@ class OllamaBackend(LLMBackend):
                 "temperature": self.temperature,
             },
         }
+
+        if self.enable_json_format:
+            payload["format"] = "json"
 
         try:
             logger.debug("Ollama request: model=%s, prompt_len=%d", self.model, len(prompt))
