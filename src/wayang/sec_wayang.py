@@ -6,9 +6,10 @@ from typing import Optional
 
 from src.sabda.bus import SabdaBus
 from src.sabda.models import WayangResult, WayangStatus
-from src.wayang.base_wayang import Wayang
+from src.wayang.base_wayang import Wayang, build_prompt
 from src.llm.interfaces import LLMBackend
 from src.llm.mock_backend import mock_respond
+from src.llm.parse import parse_llm_response
 
 logger = logging.getLogger(__name__)
 
@@ -26,23 +27,23 @@ class SecWayang(Wayang):
             target = payload.get("file", "auth.py")
             coder_result = self.delegasi_ke("coder_wayang", "analyze_code", {"file": target})
 
-            # Run our own security scan
-            security_prompt = f"scan_subdomain {json.dumps({'target': payload.get('target', 'target.com')})}"
+            # Run our own security scan with structured prompt
+            security_prompt = build_prompt("scan_subdomain", {"target": payload.get('target', 'target.com')})
             if self.backend is not None:
                 security_json = self.backend.respond(security_prompt)
             else:
                 security_json = mock_respond(security_prompt)
-            security_data = json.loads(security_json)
+            security_result = parse_llm_response(security_json, self.agent_id)
 
             # Combine results
             combined_result = {
-                "security": security_data.get("result", {}),
+                "security": security_result.result if security_result else {},
                 "code_analysis": coder_result.result if coder_result else {},
             }
 
             notes_parts = []
-            if security_data.get("notes"):
-                notes_parts.append(f"Security: {security_data['notes']}")
+            if security_result and security_result.notes:
+                notes_parts.append(f"Security: {security_result.notes}")
             if coder_result and coder_result.notes:
                 notes_parts.append(f"Code: {coder_result.notes}")
 

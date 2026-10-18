@@ -2,3 +2,6 @@ pydantic>=2.0.0
 pytest>=7.0.0
 requests>=2.31.0
 pyyaml>=6.0.1
+
+# Dev dependencies (install with: pip install -r requirements.txt && pip install pre-commit)
+# pre-commit>=4.0.0
